@@ -2092,6 +2092,20 @@ static inline gboolean uc_read_exit_iter(gpointer key, gpointer val,
 }
 
 UNICORN_EXPORT
+uc_err uc_interrupt(uc_engine *uc, int irq, int set) {
+    CPUClass *cc = CPU_GET_CLASS(uc->cpu);
+    cc->set_irq(uc->cpu, irq, set);
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_reset(uc_engine *uc) {
+    CPUClass *cc = CPU_GET_CLASS(uc->cpu);
+    cc->reset(uc->cpu);
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
 uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...)
 {
     int rw, type;

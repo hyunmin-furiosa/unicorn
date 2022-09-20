@@ -688,6 +688,12 @@ uc_err uc_close(uc_engine *uc);
 UNICORN_EXPORT
 uc_err uc_query(uc_engine *uc, uc_query_type type, size_t *result);
 
+UNICORN_EXPORT
+uc_err uc_interrupt(uc_engine *uc, int irq, int set);
+
+UNICORN_EXPORT
+uc_err uc_reset(uc_engine *uc);
+
 /*
  Control internal states of engine.
 
