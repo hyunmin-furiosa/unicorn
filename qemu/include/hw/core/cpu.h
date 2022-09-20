@@ -133,6 +133,7 @@ typedef struct CPUClass {
 
     vaddr (*adjust_watchpoint_address)(CPUState *cpu, vaddr addr, int len);
     void (*tcg_initialize)(struct uc_struct *uc);
+    void (*set_irq)(CPUState *cpu, int irq, int level);
 } CPUClass;
 
 /*

@@ -596,6 +596,46 @@ void arm_cpu_update_vfiq(ARMCPU *cpu)
     }
 }
 
+static void arm_cpu_set_irq(CPUState *cs, int irq, int level)
+{
+    ARMCPU *cpu = ARM_CPU(cs);
+    CPUARMState *env = &cpu->env;
+
+    static const int mask[] = {
+        [ARM_CPU_IRQ] = CPU_INTERRUPT_HARD,
+        [ARM_CPU_FIQ] = CPU_INTERRUPT_FIQ,
+        [ARM_CPU_VIRQ] = CPU_INTERRUPT_VIRQ,
+        [ARM_CPU_VFIQ] = CPU_INTERRUPT_VFIQ
+    };
+
+    if (level) {
+        env->irq_line_state |= mask[irq];
+    } else {
+        env->irq_line_state &= ~mask[irq];
+    }
+
+    switch (irq) {
+    case ARM_CPU_VIRQ:
+        assert(arm_feature(env, ARM_FEATURE_EL2));
+        arm_cpu_update_virq(cpu);
+        break;
+    case ARM_CPU_VFIQ:
+        assert(arm_feature(env, ARM_FEATURE_EL2));
+        arm_cpu_update_vfiq(cpu);
+        break;
+    case ARM_CPU_IRQ:
+    case ARM_CPU_FIQ:
+        if (level) {
+            cpu_interrupt(cs, mask[irq]);
+        } else {
+            cpu_reset_interrupt(cs, mask[irq]);
+        }
+        break;
+    default:
+        g_assert_not_reached();
+    }
+}
+
 static inline void set_feature(CPUARMState *env, int feature)
 {
     env->features |= 1ULL << feature;
@@ -2083,6 +2123,7 @@ void arm_cpu_class_init(struct uc_struct *uc, CPUClass *oc)
     cc->tlb_fill_cpu = arm_cpu_tlb_fill;
     cc->debug_excp_handler = arm_debug_excp_handler;
     cc->do_unaligned_access = arm_cpu_do_unaligned_access;
+    cc->set_irq = arm_cpu_set_irq; 
 }
 
 static void arm_cpu_instance_init(CPUState *obj)
