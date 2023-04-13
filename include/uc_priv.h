@@ -285,6 +285,9 @@ struct uc_struct {
     uc_add_inline_hook_t add_inline_hook;
     uc_del_inline_hook_t del_inline_hook;
 
+    uc_hintfunc_t uc_hint_func;
+    void*         uc_hint_opaque;
+
     /*  only 1 cpu in unicorn,
         do not need current_cpu to handle current running cpu. */
     CPUState *cpu;
