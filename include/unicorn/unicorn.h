@@ -744,12 +744,6 @@ uc_err uc_close(uc_engine *uc);
 UNICORN_EXPORT
 uc_err uc_query(uc_engine *uc, uc_query_type type, size_t *result);
 
-UNICORN_EXPORT
-uc_err uc_interrupt(uc_engine *uc, int irq, int set);
-
-UNICORN_EXPORT
-uc_err uc_reset(uc_engine *uc);
-
 /*
  Control internal states of engine.
 
@@ -1360,6 +1354,27 @@ size_t uc_context_size(uc_engine *uc);
 */
 UNICORN_EXPORT
 uc_err uc_context_free(uc_context *context);
+
+UNICORN_EXPORT
+uc_err uc_interrupt(uc_engine *uc, int irq, int set);
+
+UNICORN_EXPORT
+uc_err uc_reset(uc_engine *uc);
+
+typedef enum uc_hint {
+    UC_HINT_NOP, /* unused! NOP currently generates no code! */
+    UC_HINT_YIELD,
+    UC_HINT_WFE,
+    UC_HINT_WFI,
+    UC_HINT_SEV,
+    UC_HINT_SEVL,
+    UC_HINT_HINT, /* unused! reserved for architectural extensions */
+} uc_hint_t;
+
+typedef void (*uc_hintfunc_t)(void*, uc_hint_t); 
+
+UNICORN_EXPORT
+uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t hintfn);
 
 #ifdef __cplusplus
 }
