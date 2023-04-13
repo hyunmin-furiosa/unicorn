@@ -19,6 +19,7 @@ extern "C" {
 typedef enum uc_cpu_arm64 {
     UC_CPU_ARM64_A57 = 0,
     UC_CPU_ARM64_A53,
+    UC_CPU_ARM64_A55,
     UC_CPU_ARM64_A72,
     UC_CPU_ARM64_MAX,
 
