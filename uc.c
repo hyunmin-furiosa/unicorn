@@ -2397,6 +2397,15 @@ uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...)
 
     return err;
 }
+UNICORN_EXPORT
+uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t fn) {
+    if (uc == NULL)
+        return UC_ERR_ARG;
+
+    uc->uc_hint_opaque = opaque;
+    uc->uc_hint_func = fn;
+    return UC_ERR_OK;
+}
 
 #ifdef UNICORN_TRACER
 uc_tracer *get_tracer()
