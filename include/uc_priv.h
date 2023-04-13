@@ -306,6 +306,9 @@ struct uc_struct {
     uc_context_save_t context_save;
     uc_context_restore_t context_restore;
 
+    uc_hintfunc_t uc_hint_func;
+    void*         uc_hint_opaque;
+
     /*  only 1 cpu in unicorn,
         do not need current_cpu to handle current running cpu. */
     CPUState *cpu;
