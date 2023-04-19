@@ -287,7 +287,6 @@ void HELPER(wfi)(CPUARMState *env, uint32_t insn_len)
 
     if (fn != NULL) {
         fn(opaque, UC_HINT_WFI);
-        return;
     }
 
     CPUState *cs = env_cpu(env);
