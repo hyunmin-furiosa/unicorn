@@ -1185,6 +1185,9 @@ typedef void (*uc_hintfunc_t)(void*, uc_hint_t);
 UNICORN_EXPORT
 uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t hintfn);
 
+UNICORN_EXPORT
+unsigned int uc_get_emu_counter(uc_engine *uc);
+
 #ifdef __cplusplus
 }
 #endif

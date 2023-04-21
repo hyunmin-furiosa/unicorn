@@ -2406,6 +2406,12 @@ uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t fn) {
     uc->uc_hint_func = fn;
     return UC_ERR_OK;
 }
+UNICORN_EXPORT
+unsigned int uc_get_emu_counter(uc_engine *uc) {
+    if (uc == NULL)
+        return 0;
+    return uc->emu_counter;
+}
 
 #ifdef UNICORN_TRACER
 uc_tracer *get_tracer()
