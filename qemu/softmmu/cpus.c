@@ -129,7 +129,8 @@ static int tcg_cpu_exec(struct uc_struct *uc)
                 break;
             }
         } else if (cpu->stop || cpu->stopped) {
-            // printf(">>> got stopped!!!\n");
+            printf(">>> got stopped!!!\n");
+            finish = true; // from ocx-qemu-arm unicorn
             break;
         }
     }

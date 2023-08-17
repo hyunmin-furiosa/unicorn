@@ -11364,8 +11364,12 @@ static bool arm_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cpu,
 {
     DisasContext *dc = container_of(dcbase, DisasContext, base);
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
-
-    if (bp->flags & BP_CPU) {
+    if (bp->flags & BP_CALL) {
+        gen_set_condexec(dc);
+        gen_set_pc_im(dc, dc->base.pc_next);
+        gen_helper_call_breakpoints(tcg_ctx, tcg_ctx->cpu_env);
+        dc->base.is_jmp = DISAS_EXIT;
+    } else if (bp->flags & BP_CPU) {
         gen_set_condexec(dc);
         gen_set_pc_im(dc, dc->base.pc_next);
         gen_helper_check_breakpoints(tcg_ctx, tcg_ctx->cpu_env);

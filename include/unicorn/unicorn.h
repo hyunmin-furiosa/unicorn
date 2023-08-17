@@ -1359,8 +1359,53 @@ UNICORN_EXPORT
 uc_err uc_interrupt(uc_engine *uc, int irq, int set);
 
 UNICORN_EXPORT
+uc_err uc_va2pa(uc_engine *uc, uint64_t va, uint64_t *pa);
+
+UNICORN_EXPORT
 uc_err uc_reset(uc_engine *uc);
 
+typedef void (*uc_breakpoint_hit_t)(void *opaque, uint64_t addr);
+typedef void (*uc_watchpoint_hit_t)(void *opaque, uint64_t addr, uint64_t size,
+                                    uint64_t data, bool iswr);
+UNICORN_EXPORT
+uc_err uc_insert_breakpoint(uc_engine *uc, uint64_t addr);
+
+UNICORN_EXPORT
+uc_err uc_remove_breakpoint(uc_engine *uc, uint64_t addr);
+
+UNICORN_EXPORT
+uc_err uc_setup_breakpoint_cb(uc_engine *uc, void *ptr, uc_breakpoint_hit_t fn);
+
+UNICORN_EXPORT
+uc_err uc_insert_breakpoint_cb(uc_engine *uc, uint64_t addr);
+
+UNICORN_EXPORT
+uc_err uc_remove_breakpoint_cb(uc_engine *uc, uint64_t addr);
+
+typedef enum uc_wpflags {
+    UC_WP_READ = 1 << 0,
+    UC_WP_WRITE = 1 << 1,
+    UC_WP_ACCESS = UC_WP_READ | UC_WP_WRITE,
+    UC_WP_BEFORE = 1 << 2, /* stop on instruction before watchpoint */
+    UC_WP_CALL = 1 << 3,   /* invoke a callback before watchpoint */
+} uc_wpflags_t;
+
+UNICORN_EXPORT
+uc_err uc_insert_watchpoint(uc_engine *uc, uint64_t addr, size_t sz, int flags);
+
+UNICORN_EXPORT
+uc_err uc_remove_watchpoint(uc_engine *uc, uint64_t addr, size_t sz, int flags);
+
+UNICORN_EXPORT
+uc_err uc_setup_watchpoint_cb(uc_engine *uc, void *ptr, uc_watchpoint_hit_t fn);
+
+UNICORN_EXPORT
+uc_err uc_insert_watchpoint_cb(uc_engine *uc, uint64_t addr, size_t sz,
+                               int flags);
+
+UNICORN_EXPORT
+uc_err uc_remove_watchpoint_cb(uc_engine *uc, uint64_t addr, size_t sz,
+                               int flags);
 typedef enum uc_hint {
     UC_HINT_NOP, /* unused! NOP currently generates no code! */
     UC_HINT_YIELD,
@@ -1371,7 +1416,7 @@ typedef enum uc_hint {
     UC_HINT_HINT, /* unused! reserved for architectural extensions */
 } uc_hint_t;
 
-typedef void (*uc_hintfunc_t)(void*, uc_hint_t); 
+typedef void (*uc_hintfunc_t)(void *, uc_hint_t);
 
 UNICORN_EXPORT
 uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t hintfn);
