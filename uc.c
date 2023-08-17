@@ -28,6 +28,7 @@
 #include "qemu/target/tricore/unicorn.h"
 
 #include "qemu/include/tcg/tcg-apple-jit.h"
+#include "qemu/include/hw/core/cpu.h"
 #include "qemu/include/qemu/queue.h"
 #include "qemu-common.h"
 
@@ -332,6 +333,15 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
         QTAILQ_INIT(&uc->memory_listeners);
 
         QTAILQ_INIT(&uc->address_spaces);
+
+        // to debug
+        uc->uc_breakpoint_func = NULL;
+        uc->uc_breakpoint_opaque = NULL;
+
+        uc->uc_watchpoint_func = NULL;
+        uc->uc_watchpoint_opaque = NULL;
+
+        // uc->is_debug = false;
 
         switch (arch) {
         default:
@@ -2460,6 +2470,21 @@ uc_err uc_interrupt(uc_engine *uc, int irq, int set) {
 }
 
 UNICORN_EXPORT
+uc_err uc_va2pa(uc_engine *uc, uint64_t va, uint64_t *pa) {
+    uint64_t va_offset = va & uc->target_page_align;
+    uint64_t va_pg = va ^ va_offset;
+    uint64_t addr = cpu_get_phys_page_debug(uc->cpu, va_pg);
+
+    if (addr == ~0)
+        return UC_ERR_NOMEM;
+
+    if (pa != NULL)
+        *pa = (addr | va_offset);
+
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
 uc_err uc_reset(uc_engine *uc) {
     CPUClass *cc = CPU_GET_CLASS(uc->cpu);
     cc->reset(uc->cpu);
@@ -2832,6 +2857,126 @@ uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...)
 
     return err;
 }
+static uc_err __uc_insert_breakpoint(uc_engine *uc, uint64_t addr, int flags) {
+    if (!uc->insert_breakpoint(uc->cpu, addr, flags, NULL))
+        return UC_ERR_OK;
+    return UC_ERR_ARG;
+}
+
+static uc_err __uc_remove_breakpoint(uc_engine *uc, uint64_t addr, int flags) {
+    if (!uc->remove_breakpoint(uc->cpu, addr, flags))
+        return UC_ERR_OK;
+    return UC_ERR_ARG;
+}
+
+UNICORN_EXPORT
+uc_err uc_insert_breakpoint(uc_engine *uc, uint64_t addr) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_insert_breakpoint(uc, addr, BP_GDB);
+    // uc->is_debug = false;
+    return ret;
+}
+
+UNICORN_EXPORT
+uc_err uc_remove_breakpoint(uc_engine *uc, uint64_t addr) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_remove_breakpoint(uc, addr, BP_GDB);
+    // uc->is_debug = false;
+    return ret;
+}
+
+
+UNICORN_EXPORT
+uc_err uc_setup_breakpoint_cb(uc_engine *uc, void *p, uc_breakpoint_hit_t fn) {
+    uc->uc_breakpoint_opaque = p;
+    uc->uc_breakpoint_func = fn;
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_insert_breakpoint_cb(uc_engine *uc, uint64_t addr) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_insert_breakpoint(uc, addr, BP_CALL);
+    // uc->is_debug = false;
+    return ret;
+}
+
+UNICORN_EXPORT
+uc_err uc_remove_breakpoint_cb(uc_engine *uc, uint64_t addr) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_remove_breakpoint(uc, addr, BP_CALL);
+    // uc->is_debug = false;
+    return ret;
+}
+
+static int __uc_convert_watchpoint_flags(int flags) {
+    int qemu_flags = 0;
+    if (flags & UC_WP_READ)
+        qemu_flags |= BP_MEM_READ;
+    if (flags & UC_WP_WRITE)
+        qemu_flags |= BP_MEM_WRITE;
+    if (flags & UC_WP_BEFORE)
+        qemu_flags |= BP_STOP_BEFORE_ACCESS;
+    if (flags & UC_WP_CALL)
+        qemu_flags |= BP_CALL;
+
+    return qemu_flags;
+}
+
+static uc_err __uc_insert_watchpoint(uc_engine *uc, uint64_t addr, size_t size, int flags) {
+    int qemu_flags = __uc_convert_watchpoint_flags(flags);
+
+    if (!uc->insert_watchpoint(uc->cpu, addr, size, qemu_flags, NULL))
+        return UC_ERR_OK;
+
+    return UC_ERR_ARG;
+}
+
+static uc_err __uc_remove_watchpoint(uc_engine *uc, uint64_t addr, size_t size, int flags) {
+    int qemu_flags = __uc_convert_watchpoint_flags(flags);
+
+    if (!uc->remove_watchpoint(uc->cpu, addr, size, qemu_flags))
+        return UC_ERR_OK;
+
+    return UC_ERR_ARG;
+}
+
+UNICORN_EXPORT
+uc_err uc_insert_watchpoint(uc_engine *uc, uint64_t addr, size_t size, int flags) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_insert_watchpoint(uc, addr, size, flags);
+    // uc->is_debug = false;
+    return ret;
+}
+
+UNICORN_EXPORT
+uc_err uc_remove_watchpoint(uc_engine *uc, uint64_t addr, size_t size, int flags) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_remove_watchpoint(uc, addr, size, flags);
+    // uc->is_debug = false;
+    return ret;
+}
+
+UNICORN_EXPORT
+uc_err uc_setup_watchpoint_cb(uc_engine *uc, void *ptr, uc_watchpoint_hit_t f) {
+    uc->uc_watchpoint_opaque = ptr;
+    uc->uc_watchpoint_func = f;
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_insert_watchpoint_cb(uc_engine *uc, uint64_t addr, size_t size, int flags) {
+    return uc_insert_watchpoint(uc, addr, size, flags | UC_WP_CALL);
+}
+
+UNICORN_EXPORT
+uc_err uc_remove_watchpoint_cb(uc_engine *uc, uint64_t addr, size_t size, int flags) {
+    // uc->is_debug = true;
+    uc_err ret = __uc_remove_watchpoint(uc, addr, size, flags | UC_WP_CALL);
+    // uc->is_debug = false;
+    return ret;
+}
+
 UNICORN_EXPORT
 uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t fn) {
     if (uc == NULL)

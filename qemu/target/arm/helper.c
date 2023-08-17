@@ -482,6 +482,13 @@ static void tlbimva_hyp_is_write(CPUARMState *env, const ARMCPRegInfo *ri,
                                              ARMMMUIdxBit_E2);
 }
 
+// from ocx-qemu-arm unicorn
+static void icache_flush_write(CPUARMState *env, const ARMCPRegInfo *ri,
+                               uint64_t value) {
+    // icache_debug("[%08lx] flush icache\n", (unsigned long)env->pc);
+    tb_flush(env_cpu(env));
+}
+
 static const ARMCPRegInfo cp_reginfo[] = {
     /* Define the secure and non-secure FCSE identifier CP registers
      * separately because there is no secure bank in V8 (no _EL3).  This allows
@@ -545,6 +552,11 @@ static const ARMCPRegInfo not_v8_cp_reginfo[] = {
     { .name = "CACHEMAINT", .cp = 15, .crn = 7, .crm = CP_ANY,
       .opc1 = 0, .opc2 = CP_ANY, .access = PL1_W,
       .type = ARM_CP_NOP | ARM_CP_OVERRIDE },
+    // from ocx-qemu-arm unicorn : intercept icache flushes to flush tlb
+    // TODO { .name = "ICACHE_FLUSH", .cp = 15, .crn = 7, .crm = 5,
+    // TODO   .opc1 = 0, .opc2 = 0, .access = PL1_W, .writefn = icache_flush_write,
+    // TODO   .type = ARM_CP_IO | ARM_CP_NO_RAW,
+    // TODO },
     REGINFO_SENTINEL
 };
 
@@ -11183,9 +11195,12 @@ hwaddr arm_cpu_get_phys_page_attrs_debug(CPUState *cs, vaddr addr,
     ARMMMUIdx mmu_idx = arm_mmu_idx(env);
 
     *attrs = (MemTxAttrs) { 0 };
-
+    // Byeongwook
+    bool prev = cs->uc->is_debug;
+    cs->uc->is_debug = true;
     ret = get_phys_addr(env, addr, 0, mmu_idx, &phys_addr,
                         attrs, &prot, &page_size, &fi, NULL);
+    cs->uc->is_debug = prev;
 
     if (ret) {
         return -1;

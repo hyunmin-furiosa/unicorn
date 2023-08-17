@@ -170,6 +170,7 @@ typedef void (*uc_add_inline_hook_t)(struct uc_struct *uc, struct hook *hk,
 // Delete a hook from helper_table
 typedef void (*uc_del_inline_hook_t)(struct uc_struct *uc, struct hook *hk);
 
+<<<<<<< HEAD
 // Return the size of a CPU context
 typedef size_t (*uc_context_size_t)(struct uc_struct *uc);
 
@@ -179,6 +180,11 @@ typedef uc_err (*uc_context_save_t)(struct uc_struct *uc, uc_context *context);
 // Restore a CPU context
 typedef uc_err (*uc_context_restore_t)(struct uc_struct *uc,
                                        uc_context *context);
+
+typedef int  (*cpu_insert_breakpoint_t)(CPUState*, vaddr, int, CPUBreakpoint**);
+typedef int  (*cpu_remove_breakpoint_t)(CPUState*, vaddr, int);
+typedef int  (*cpu_insert_watchpoint_t)(CPUState*, vaddr, vaddr, int, CPUWatchpoint**);
+typedef int  (*cpu_remove_watchpoint_t)(CPUState*, vaddr, vaddr, int);
 
 // hook list offsets
 //
@@ -306,8 +312,22 @@ struct uc_struct {
     uc_context_save_t context_save;
     uc_context_restore_t context_restore;
 
+    // to debug
+    cpu_insert_breakpoint_t insert_breakpoint;
+    cpu_remove_breakpoint_t remove_breakpoint;
+    cpu_insert_watchpoint_t insert_watchpoint;
+    cpu_remove_watchpoint_t remove_watchpoint;
+
+    uc_breakpoint_hit_t uc_breakpoint_func;
+    void*               uc_breakpoint_opaque;
+
+    uc_watchpoint_hit_t uc_watchpoint_func;
+    void*               uc_watchpoint_opaque;
+
     uc_hintfunc_t uc_hint_func;
     void*         uc_hint_opaque;
+
+    // bool is_debug;
 
     /*  only 1 cpu in unicorn,
         do not need current_cpu to handle current running cpu. */

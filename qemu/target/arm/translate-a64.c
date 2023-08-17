@@ -341,8 +341,9 @@ static inline void gen_goto_tb(DisasContext *s, int n, uint64_t dest)
 
     tb = s->base.tb;
     if (use_goto_tb(s, n, dest)) {
+        gen_a64_set_pc_im(tcg_ctx, dest); // Byeongwook Moved
         tcg_gen_goto_tb(tcg_ctx, n);
-        gen_a64_set_pc_im(tcg_ctx, dest);
+        // Byeongwook gen_a64_set_pc_im(tcg_ctx, dest);
         tcg_gen_exit_tb(tcg_ctx, tb, n);
         s->base.is_jmp = DISAS_NORETURN;
     } else {
@@ -14710,7 +14711,12 @@ static bool aarch64_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cpu,
     DisasContext *dc = container_of(dcbase, DisasContext, base);
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
 
-    if (bp->flags & BP_CPU) {
+    // from ocx-qemu-arm unicorn
+    if (bp->flags & BP_CALL) {
+        gen_a64_set_pc_im(tcg_ctx, dc->base.pc_next);
+        gen_helper_call_breakpoints(tcg_ctx, tcg_ctx->cpu_env);
+        dc->base.is_jmp = DISAS_EXIT;
+    } else if (bp->flags & BP_CPU) {
         gen_a64_set_pc_im(tcg_ctx, dc->base.pc_next);
         gen_helper_check_breakpoints(tcg_ctx, tcg_ctx->cpu_env);
         /* End the TB early; it likely won't be executed */

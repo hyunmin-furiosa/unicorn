@@ -142,6 +142,12 @@ static inline void uc_common_init(struct uc_struct* uc)
     uc->memory_filter_subregions = memory_region_filter_subregions;
     uc->memory_cow = memory_cow;
 
+    // to debug
+    uc->insert_breakpoint = cpu_breakpoint_insert;
+    uc->remove_breakpoint = cpu_breakpoint_remove;
+    uc->insert_watchpoint = cpu_watchpoint_insert;
+    // TODO uc->remove_watchpoint = cpu_watchpoint_remove;
+
     if (!uc->release)
         uc->release = release_common;
 }
