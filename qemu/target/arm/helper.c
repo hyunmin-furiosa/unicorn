@@ -11196,11 +11196,11 @@ hwaddr arm_cpu_get_phys_page_attrs_debug(CPUState *cs, vaddr addr,
 
     *attrs = (MemTxAttrs) { 0 };
     // Byeongwook
-    bool prev = cs->uc->is_debug;
-    cs->uc->is_debug = true;
+    // bool prev = cs->uc->is_debug;
+    // cs->uc->is_debug = true;
     ret = get_phys_addr(env, addr, 0, mmu_idx, &phys_addr,
                         attrs, &prot, &page_size, &fi, NULL);
-    cs->uc->is_debug = prev;
+    // cs->uc->is_debug = prev;
 
     if (ret) {
         return -1;
