@@ -337,7 +337,7 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
     struct uc_struct *uc = cpu->uc;
     struct hook *hook;
 
-    // printf(">> exception index = %u\n", cpu->exception_index); qq
+    // printf(">> exception index = %u\n", cpu->exception_index);
 
     if (cpu->uc->stop_interrupt && cpu->uc->stop_interrupt(cpu->uc, cpu->exception_index)) {
         // Unicorn: call registered invalid instruction callbacks
@@ -405,11 +405,21 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
         }
         // Unicorn: If un-catched interrupt, stop executions.
         if (!catched) {
+            // EXCP_SMC
+            printf(">> EXCP interrupt_request : %d\n", cpu->interrupt_request);
+            // *ret = cpu->exception_index;
+            // cpu->exception_index = -1;
+            // return true;
+            CPUClass *cc = CPU_GET_CLASS(cpu);
+            cc->do_interrupt(cpu);
+            cpu->exception_index = -1;
+            /*
             // printf("AAAAAAAAAAAA\n"); qq
             uc->invalid_error = UC_ERR_EXCEPTION;
             cpu->halted = 1;
             *ret = EXCP_HLT;
             return true;
+            */
         }
 
         cpu->exception_index = -1;

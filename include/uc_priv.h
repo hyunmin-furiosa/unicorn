@@ -52,10 +52,8 @@ struct TranslationBlock;
 
 // Place the struct here since we need it in uc.c
 typedef struct _mmio_cbs {
-    uc_cb_mmio_read_t read;
-    void *user_data_read;
-    uc_cb_mmio_write_t write;
-    void *user_data_write;
+    uc_cb_mmio_t callback;
+    void *user_data;
     MemoryRegionOps ops;
 } mmio_cbs;
 
@@ -114,10 +112,8 @@ typedef int (*uc_cpus_init)(struct uc_struct *, const char *);
 
 typedef MemoryRegion *(*uc_memory_map_io_t)(struct uc_struct *uc,
                                             ram_addr_t begin, size_t size,
-                                            uc_cb_mmio_read_t read_cb,
-                                            uc_cb_mmio_write_t write_cb,
-                                            void *user_data_read,
-                                            void *user_data_write);
+                                            uc_cb_mmio_t callback,
+                                            void *user_data);
 
 // which interrupt should make emulation stop?
 typedef bool (*uc_args_int_t)(struct uc_struct *uc, int intno);
@@ -170,7 +166,6 @@ typedef void (*uc_add_inline_hook_t)(struct uc_struct *uc, struct hook *hk,
 // Delete a hook from helper_table
 typedef void (*uc_del_inline_hook_t)(struct uc_struct *uc, struct hook *hk);
 
-<<<<<<< HEAD
 // Return the size of a CPU context
 typedef size_t (*uc_context_size_t)(struct uc_struct *uc);
 
@@ -317,6 +312,9 @@ struct uc_struct {
     cpu_remove_breakpoint_t remove_breakpoint;
     cpu_insert_watchpoint_t insert_watchpoint;
     cpu_remove_watchpoint_t remove_watchpoint;
+
+    uc_cb_mmio_t uc_portio_func; 
+    void*        uc_portio_opaque; 
 
     uc_breakpoint_hit_t uc_breakpoint_func;
     void*               uc_breakpoint_opaque;

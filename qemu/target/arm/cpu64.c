@@ -200,6 +200,8 @@ static void aarch64_a55_initfn(struct uc_struct *uc, CPUState *obj)
 
     /* From D5.4 AArch64 PMU register summary */
     cpu->isar.reset_pmcr_el0 = 0x410b3000;
+
+    gicv3_init_cpuif(cpu);
 }
 
 static void aarch64_a72_initfn(struct uc_struct *uc, CPUState *obj)
