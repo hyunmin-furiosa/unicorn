@@ -479,6 +479,29 @@ typedef enum uc_query_type {
                       // result = True)
 } uc_query_type;
 
+// from ocx-qemu-arm unicorn
+typedef struct uc_mmio_tx {
+    uint64_t addr;
+    size_t   size;
+    void*    data;
+
+    bool is_read;
+    bool is_secure; // adapted from MemAttrs
+    bool is_user;
+    bool is_io;
+
+    unsigned int cpuid;
+} uc_mmio_tx_t;
+
+typedef enum uc_tx_result {
+    UC_TX_OK = 0,
+    UC_TX_ERROR = 1,
+    UC_TX_ADDRESS_ERROR = 2,
+} uc_tx_result_t;
+
+typedef uc_tx_result_t (*uc_cb_mmio_t)(uc_engine* uc, void* opaque,
+                                       uc_mmio_tx_t* tx);
+
 // The implementation of uc_ctl is like what Linux ioctl does but slightly
 // different.
 //
@@ -1093,8 +1116,7 @@ uc_err uc_mem_map_ptr(uc_engine *uc, uint64_t address, size_t size,
  */
 UNICORN_EXPORT
 uc_err uc_mmio_map(uc_engine *uc, uint64_t address, size_t size,
-                   uc_cb_mmio_read_t read_cb, void *user_data_read,
-                   uc_cb_mmio_write_t write_cb, void *user_data_write);
+                   uc_cb_mmio_t callback, void *user_data);
 
 /*
  Unmap a region of emulation memory.
@@ -1364,6 +1386,10 @@ uc_err uc_va2pa(uc_engine *uc, uint64_t va, uint64_t *pa);
 UNICORN_EXPORT
 uc_err uc_reset(uc_engine *uc);
 
+// from ocx-qemu-arm unicorn
+UNICORN_EXPORT
+uc_err uc_setup_portio_cb(uc_engine *uc, void* opaque, uc_cb_mmio_t callback);
+
 typedef void (*uc_breakpoint_hit_t)(void *opaque, uint64_t addr);
 typedef void (*uc_watchpoint_hit_t)(void *opaque, uint64_t addr, uint64_t size,
                                     uint64_t data, bool iswr);
@@ -1374,7 +1400,7 @@ UNICORN_EXPORT
 uc_err uc_remove_breakpoint(uc_engine *uc, uint64_t addr);
 
 UNICORN_EXPORT
-uc_err uc_setup_breakpoint_cb(uc_engine *uc, void *ptr, uc_breakpoint_hit_t fn);
+uc_err uc_setup_breakpoint_cb(uc_engine *uc, void *opaque, uc_breakpoint_hit_t fn);
 
 UNICORN_EXPORT
 uc_err uc_insert_breakpoint_cb(uc_engine *uc, uint64_t addr);
@@ -1397,7 +1423,7 @@ UNICORN_EXPORT
 uc_err uc_remove_watchpoint(uc_engine *uc, uint64_t addr, size_t sz, int flags);
 
 UNICORN_EXPORT
-uc_err uc_setup_watchpoint_cb(uc_engine *uc, void *ptr, uc_watchpoint_hit_t fn);
+uc_err uc_setup_watchpoint_cb(uc_engine *uc, void *opaque, uc_watchpoint_hit_t fn);
 
 UNICORN_EXPORT
 uc_err uc_insert_watchpoint_cb(uc_engine *uc, uint64_t addr, size_t sz,

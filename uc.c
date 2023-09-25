@@ -1232,8 +1232,7 @@ uc_err uc_mem_map_ptr(uc_engine *uc, uint64_t address, size_t size,
 
 UNICORN_EXPORT
 uc_err uc_mmio_map(uc_engine *uc, uint64_t address, size_t size,
-                   uc_cb_mmio_read_t read_cb, void *user_data_read,
-                   uc_cb_mmio_write_t write_cb, void *user_data_write)
+                   uc_cb_mmio_t callback, void *user_data)
 {
     uc_err res;
 
@@ -1245,8 +1244,7 @@ uc_err uc_mmio_map(uc_engine *uc, uint64_t address, size_t size,
 
     // The callbacks do not need to be checked for NULL here, as their presence
     // (or lack thereof) will determine the permissions used.
-    return mem_map(uc, uc->memory_map_io(uc, address, size, read_cb, write_cb,
-                                         user_data_read, user_data_write));
+    return mem_map(uc, uc->memory_map_io(uc, address, size, callback, user_data));
 }
 
 // Create a backup copy of the indicated MemoryRegion.
@@ -1321,23 +1319,22 @@ static bool split_mmio_region(struct uc_struct *uc, MemoryRegion *mr,
     m_size = (size_t)(chunk_end - address);
 
     if (l_size > 0) {
-        if (uc_mmio_map(uc, begin, l_size, backup.read, backup.user_data_read,
-                        backup.write, backup.user_data_write) != UC_ERR_OK) {
+        if (uc_mmio_map(uc, begin, l_size, backup.callback, 
+                        backup.user_data) != UC_ERR_OK) {
             return false;
         }
     }
 
     if (m_size > 0 && !do_delete) {
-        if (uc_mmio_map(uc, address, m_size, backup.read, backup.user_data_read,
-                        backup.write, backup.user_data_write) != UC_ERR_OK) {
+        if (uc_mmio_map(uc, address, m_size, backup.callback, 
+                        backup.user_data) != UC_ERR_OK) {
             return false;
         }
     }
 
     if (r_size > 0) {
-        if (uc_mmio_map(uc, chunk_end, r_size, backup.read,
-                        backup.user_data_read, backup.write,
-                        backup.user_data_write) != UC_ERR_OK) {
+        if (uc_mmio_map(uc, chunk_end, r_size, backup.callback,
+                        backup.user_data) != UC_ERR_OK) {
             return false;
         }
     }
@@ -2708,6 +2705,18 @@ uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...)
 
     return err;
 }
+UNICORN_EXPORT
+uc_err uc_setup_portio_cb(uc_engine *uc, void *opaque, uc_cb_mmio_t fn)
+{
+    if (!uc || !fn)
+        return UC_ERR_ARG;
+
+    uc->uc_portio_func = fn;
+    uc->uc_portio_opaque = opaque;
+
+    return UC_ERR_OK;
+}
+
 static uc_err __uc_insert_breakpoint(uc_engine *uc, uint64_t addr, int flags) {
     if (!uc->insert_breakpoint(uc->cpu, addr, flags, NULL))
         return UC_ERR_OK;
@@ -2738,9 +2747,11 @@ uc_err uc_remove_breakpoint(uc_engine *uc, uint64_t addr) {
 
 
 UNICORN_EXPORT
-uc_err uc_setup_breakpoint_cb(uc_engine *uc, void *p, uc_breakpoint_hit_t fn) {
-    uc->uc_breakpoint_opaque = p;
+uc_err uc_setup_breakpoint_cb(uc_engine *uc, void *opaque, uc_breakpoint_hit_t fn) {
+    if(!uc || !fn)
+        return UC_ERR_ARG;
     uc->uc_breakpoint_func = fn;
+    uc->uc_breakpoint_opaque = opaque;
     return UC_ERR_OK;
 }
 
@@ -2809,9 +2820,9 @@ uc_err uc_remove_watchpoint(uc_engine *uc, uint64_t addr, size_t size, int flags
 }
 
 UNICORN_EXPORT
-uc_err uc_setup_watchpoint_cb(uc_engine *uc, void *ptr, uc_watchpoint_hit_t f) {
-    uc->uc_watchpoint_opaque = ptr;
+uc_err uc_setup_watchpoint_cb(uc_engine *uc, void *opaque, uc_watchpoint_hit_t f) {
     uc->uc_watchpoint_func = f;
+    uc->uc_watchpoint_opaque = opaque;
     return UC_ERR_OK;
 }
 
