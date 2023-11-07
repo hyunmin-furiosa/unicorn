@@ -54,6 +54,9 @@ DEF_HELPER_1(setend, void, env)
 DEF_HELPER_2(wfi, void, env, i32)
 DEF_HELPER_1(wfe, void, env)
 DEF_HELPER_1(yield, void, env)
+// lidwoogi
+DEF_HELPER_1(sev, void, env)
+DEF_HELPER_1(sevl, void, env)
 DEF_HELPER_1(pre_hvc, void, env)
 DEF_HELPER_2(pre_smc, void, env, i32)
 

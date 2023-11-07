@@ -502,6 +502,11 @@ typedef enum uc_tx_result {
 typedef uc_tx_result_t (*uc_cb_mmio_t)(uc_engine* uc, void* opaque,
                                        uc_mmio_tx_t* tx);
 
+typedef uint64_t (*uc_timer_timefunc_t)(void* opaque, uint64_t clock);
+typedef void     (*uc_timer_irqfunc_t )(void* opaque, int idx, int set);
+typedef void     (*uc_timer_schedule_t)(void* opaque, int idx, uint64_t clock,
+                                        uint64_t ticks);
+
 // The implementation of uc_ctl is like what Linux ioctl does but slightly
 // different.
 //
@@ -607,6 +612,7 @@ typedef enum uc_control_type {
     // controle if context_save/restore should work with snapshots
     // Write: @args = (int)
     UC_CTL_CONTEXT_MODE,
+    UC_CTL_SMP,
 } uc_control_type;
 
 /*
@@ -690,6 +696,8 @@ See sample_ctl.c for a detailed example.
     uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TCG_BUFFER_SIZE, 1), (size))
 #define uc_ctl_context_mode(uc, mode)                                          \
     uc_ctl(uc, UC_CTL_WRITE(UC_CTL_CONTEXT_MODE, 1), (mode))
+#define uc_ctl_set_smp(uc, smp, id)                                        \
+    uc_ctl(uc, UC_CTL_WRITE(UC_CTL_SMP, 2), (smp), (id))
 
 // Opaque storage for CPU context, used with uc_context_*()
 struct uc_context;
@@ -1390,9 +1398,35 @@ uc_err uc_reset(uc_engine *uc);
 UNICORN_EXPORT
 uc_err uc_setup_portio_cb(uc_engine *uc, void* opaque, uc_cb_mmio_t callback);
 
+typedef void (*uc_tlb_cluster_flush_t)(void* opaque);
+typedef void (*uc_tlb_cluster_flush_page_t)(void* opaque, uint64_t addr);
+typedef void (*uc_tlb_cluster_flush_mmuidx_t)(void* opaque, uint16_t idxmap);
+typedef void (*uc_tlb_cluster_flush_page_mmuidx_t)(void* opaque, uint64_t addr,
+                                                   uint16_t idxmap);
+
 typedef void (*uc_breakpoint_hit_t)(void *opaque, uint64_t addr);
 typedef void (*uc_watchpoint_hit_t)(void *opaque, uint64_t addr, uint64_t size,
                                     uint64_t data, bool iswr);
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush(uc_engine *uc);
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush_page(uc_engine *uc, uint64_t addr);
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush_mmuidx(uc_engine *uc, uint16_t idxmap);
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush_page_mmuidx(uc_engine *uc, uint64_t addr, uint16_t idxmap);
+
+UNICORN_EXPORT
+uc_err uc_register_tlb_cluster(uc_engine *uc, void *opaque,
+        uc_tlb_cluster_flush_t             tlb_cluster_flush_fn,
+        uc_tlb_cluster_flush_page_t        tlb_cluster_flush_page_fn,
+        uc_tlb_cluster_flush_mmuidx_t      tlb_cluster_flush_mmuidx_fn,
+        uc_tlb_cluster_flush_page_mmuidx_t tlb_cluster_flush_page_mmuidx_fn);
+
 UNICORN_EXPORT
 uc_err uc_insert_breakpoint(uc_engine *uc, uint64_t addr);
 
@@ -1446,6 +1480,13 @@ typedef void (*uc_hintfunc_t)(void *, uc_hint_t);
 
 UNICORN_EXPORT
 uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t hintfn);
+
+UNICORN_EXPORT
+uc_err uc_setup_timer(uc_engine *uc, void *opaque, uc_timer_timefunc_t timefn,
+                      uc_timer_irqfunc_t irqfn, uc_timer_schedule_t schedfn);
+
+UNICORN_EXPORT
+uc_err uc_update_timer(uc_engine *uc, int timeridx);
 
 UNICORN_EXPORT
 unsigned int uc_get_emu_counter(uc_engine *uc);

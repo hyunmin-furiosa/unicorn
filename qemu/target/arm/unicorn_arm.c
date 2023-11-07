@@ -753,6 +753,30 @@ static uc_err uc_arm_context_restore(struct uc_struct *uc, uc_context *context)
 
     return UC_ERR_OK;
 }
+// from ocx-qemu-arm
+void arm_timer_recalc(CPUState *cpu, int timeridx)
+{
+    switch (timeridx) {
+    case GTIMER_PHYS:
+        arm_gt_ptimer_cb(ARM_CPU(cpu));
+        break;
+
+    case GTIMER_VIRT:
+        arm_gt_vtimer_cb(ARM_CPU(cpu));
+        break;
+
+    case GTIMER_HYP:
+        arm_gt_htimer_cb(ARM_CPU(cpu));
+        break;
+
+    case GTIMER_SEC:
+        arm_gt_stimer_cb(ARM_CPU(cpu));
+        break;
+
+    default:
+        assert(0 && "invalid timer index");
+    }
+}
 
 DEFAULT_VISIBILITY
 void uc_init(struct uc_struct *uc)
@@ -772,4 +796,6 @@ void uc_init(struct uc_struct *uc)
     uc->context_save = uc_arm_context_save;
     uc->context_restore = uc_arm_context_restore;
     uc_common_init(uc);
+    // from ocx-qemu-arm
+    uc->timer_recalc = arm_timer_recalc;
 }
