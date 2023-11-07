@@ -8526,6 +8526,20 @@ static bool trans_WFI(DisasContext *s, arg_WFI *a)
     return true;
 }
 
+static bool trans_SEV(DisasContext *s, arg_SEV *a)
+{
+    gen_set_pc_im(s, s->base.pc_next);
+    s->base.is_jmp = DISAS_SEV;
+    return true;
+}
+
+static bool trans_SEVL(DisasContext *s, arg_SEVL *a)
+{
+    gen_set_pc_im(s, s->base.pc_next);
+    s->base.is_jmp = DISAS_SEVL;
+    return true;
+}
+
 static bool trans_NOP(DisasContext *s, arg_NOP *a)
 {
     return true;
@@ -11713,6 +11727,12 @@ static void arm_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
         }
         case DISAS_WFE:
             gen_helper_wfe(tcg_ctx, tcg_ctx->cpu_env);
+            break;
+        case DISAS_SEV:
+            gen_helper_sev(tcg_ctx, tcg_ctx->cpu_env);
+            break;
+        case DISAS_SEVL:
+            gen_helper_sevl(tcg_ctx, tcg_ctx->cpu_env);
             break;
         case DISAS_YIELD:
             gen_helper_yield(tcg_ctx, tcg_ctx->cpu_env);

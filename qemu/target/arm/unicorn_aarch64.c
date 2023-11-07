@@ -235,6 +235,10 @@ uc_err reg_read(void *_env, int mode, unsigned int regid, void *value,
             CHECK_REG_TYPE(uint32_t);
             *(uint32_t *)value = pstate_read(env);
             break;
+        case UC_ARM64_REG_SCR_EL3:
+            CHECK_REG_TYPE(uint64_t);
+            *(uint64_t*)value = env->cp15.scr_el3;
+            break;
         case UC_ARM64_REG_TTBR0_EL1:
             CHECK_REG_TYPE(uint64_t);
             *(uint64_t *)value = env->cp15.ttbr0_el[1];
@@ -414,6 +418,32 @@ static int arm64_cpus_init(struct uc_struct *uc, const char *cpu_model)
     return 0;
 }
 
+// from ocx-qemu-arm
+// void arm64_timer_recalc(CPUState *cpu, int timeridx);
+void arm64_timer_recalc(CPUState *cpu, int timeridx)
+{
+    switch (timeridx) {
+    case GTIMER_PHYS:
+        arm_gt_ptimer_cb(cpu);
+        break;
+
+    case GTIMER_VIRT:
+        arm_gt_vtimer_cb(cpu);
+        break;
+
+    case GTIMER_HYP:
+        arm_gt_htimer_cb(cpu);
+        break;
+
+    case GTIMER_SEC:
+        arm_gt_stimer_cb(cpu);
+        break;
+
+    default:
+        assert(0 && "invalid timer index");
+    }
+}
+
 DEFAULT_VISIBILITY
 void uc_init(struct uc_struct *uc)
 {
@@ -425,5 +455,8 @@ void uc_init(struct uc_struct *uc)
     uc->release = arm64_release;
     uc->cpus_init = arm64_cpus_init;
     uc->cpu_context_size = offsetof(CPUARMState, cpu_watchpoint);
+
+    uc->timer_recalc = arm64_timer_recalc;
+
     uc_common_init(uc);
 }

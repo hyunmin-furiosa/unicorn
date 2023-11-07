@@ -142,6 +142,11 @@ static inline void uc_common_init(struct uc_struct* uc)
     uc->memory_filter_subregions = memory_region_filter_subregions;
     uc->memory_cow = memory_cow;
 
+    // from ocx-qemu-arm
+    uc->tlb_flush = tlb_flush;
+    uc->tlb_flush_page = tlb_flush_page;
+    uc->tlb_flush_mmuidx = tlb_flush_by_mmuidx;
+    uc->tlb_flush_page_mmuidx = tlb_flush_page_by_mmuidx;
     // to debug
     uc->insert_breakpoint = cpu_breakpoint_insert;
     uc->remove_breakpoint = cpu_breakpoint_remove;

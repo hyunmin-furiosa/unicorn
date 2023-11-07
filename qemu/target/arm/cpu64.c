@@ -202,6 +202,15 @@ static void aarch64_a55_initfn(struct uc_struct *uc, CPUState *obj)
     cpu->isar.reset_pmcr_el0 = 0x410b3000;
 
     gicv3_init_cpuif(cpu);
+    // temp
+    // cpu->psci_conduit = QEMU_PSCI_CONDUIT_SMC;
+    // cpu->psci_version = 0x10001;
+    // TODO core count and update cpu_index
+    if(uc->smp) {
+        obj->cpu_index = uc->core_id;
+        cpu->mp_is_up = true;
+        cpu->mp_affinity = (1ull<<24) | (uc->core_id<<8);
+    }
 }
 
 static void aarch64_a72_initfn(struct uc_struct *uc, CPUState *obj)

@@ -2354,14 +2354,30 @@ static CPAccessResult gt_stimer_access(CPUARMState *env,
 static uint64_t gt_get_countervalue(CPUARMState *env)
 {
     ARMCPU *cpu = env_archcpu(env);
+    // from ocx-qemu-arm 
+    if (env->uc->timer_timefunc) {
+        uint64_t freq = env->cp15.c14_cntfrq;
+        void* opaque = env->uc->timer_opaque;
+        return env->uc->timer_timefunc(opaque, freq);
+    }
 
     return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) / gt_cntfrq_period_ns(cpu);
 }
 
 static void gt_recalc_timer(ARMCPU *cpu, int timeridx)
 {
-#if 0
+    // from ocx-qemu-arm 
     ARMGenericTimer *gt = &cpu->env.cp15.c14_timer[timeridx];
+    CPUARMState* env = &cpu->env;
+    uint64_t freq = env->cp15.c14_cntfrq;
+    void* opaque = env->uc->timer_opaque;
+
+    static int warned = 0;
+    if (!warned && !env->uc->timer_initialized) {
+        warned = 1;
+        fprintf(stderr, "arch_timer not initialized\n");
+        return;
+    }
 
     if (gt->ctl & 1) {
         /* Timer enabled: calculate and set current ISTATUS, irq, and
@@ -2377,8 +2393,10 @@ static void gt_recalc_timer(ARMCPU *cpu, int timeridx)
 
         gt->ctl = deposit32(gt->ctl, 2, 1, istatus);
 
+        // Unicorn: commented out
         irqstate = (istatus && !(gt->ctl & 2));
-        qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
+        env->uc->timer_irqfunc(opaque, timeridx, irqstate);
+        //qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
 
         if (istatus) {
             /* Next transition is when count rolls back over to zero */
@@ -2392,20 +2410,27 @@ static void gt_recalc_timer(ARMCPU *cpu, int timeridx)
          * set the timer for as far in the future as possible. When the
          * timer expires we will reset the timer for any remaining period.
          */
-        if (nexttick > INT64_MAX / gt_cntfrq_period_ns(cpu)) {
-            timer_mod_ns(cpu->gt_timer[timeridx], INT64_MAX);
-        } else {
-            timer_mod(cpu->gt_timer[timeridx], nexttick);
+        if (nexttick > INT64_MAX / GTIMER_SCALE) {
+            nexttick = INT64_MAX / GTIMER_SCALE;
         }
-        trace_arm_gt_recalc(timeridx, irqstate, nexttick);
+
+        env->uc->timer_schedule(opaque, timeridx, freq, nexttick);
+
+        // Unicorn: commented out
+        //timer_mod(cpu->gt_timer[timeridx], nexttick);
+        //trace_arm_gt_recalc(timeridx, irqstate, nexttick);
     } else {
         /* Timer disabled: ISTATUS and timer output always clear */
         gt->ctl &= ~4;
-        qemu_set_irq(cpu->gt_timer_outputs[timeridx], 0);
-        timer_del(cpu->gt_timer[timeridx]);
-        trace_arm_gt_recalc_disabled(timeridx);
+
+        env->uc->timer_irqfunc(opaque, timeridx, 0);
+        env->uc->timer_schedule(opaque, timeridx, freq, ~0);
+
+        // Unicorn: commented out
+        //qemu_set_irq(cpu->gt_timer_outputs[timeridx], 0);
+        //timer_del(cpu->gt_timer[timeridx]);
+        //trace_arm_gt_recalc_disabled(timeridx);
     }
-#endif
 }
 
 static void gt_timer_reset(CPUARMState *env, const ARMCPRegInfo *ri,
@@ -2454,11 +2479,9 @@ static void gt_cval_write(CPUARMState *env, const ARMCPRegInfo *ri,
                           int timeridx,
                           uint64_t value)
 {
-#if 0
-    trace_arm_gt_cval_write(timeridx, value);
+    // from ocx-qemu-arm
     env->cp15.c14_timer[timeridx].cval = value;
     gt_recalc_timer(env_archcpu(env), timeridx);
-#endif
 }
 
 static uint64_t gt_tval_read(CPUARMState *env, const ARMCPRegInfo *ri,
@@ -2499,10 +2522,19 @@ static void gt_ctl_write(CPUARMState *env, const ARMCPRegInfo *ri,
                          int timeridx,
                          uint64_t value)
 {
-#if 0
+    // from ocx-qemu-arm
     ARMCPU *cpu = env_archcpu(env);
     uint32_t oldval = env->cp15.c14_timer[timeridx].ctl;
 
+    static int warned = 0;
+    if (!warned && !env->uc->timer_initialized) {
+        warned = 1;
+        fprintf(stderr, "arch_timer not initialized\n");
+        return;
+    }
+
+    // Unicorn: commented out
+    //trace_arm_gt_ctl_write(timeridx, value);
     env->cp15.c14_timer[timeridx].ctl = deposit64(oldval, 0, 2, value);
     if ((oldval ^ value) & 1) {
         /* Enable toggled */
@@ -2511,11 +2543,13 @@ static void gt_ctl_write(CPUARMState *env, const ARMCPRegInfo *ri,
         /* IMASK toggled: don't need to recalculate,
          * just set the interrupt line based on ISTATUS
          */
+        /* Unicorn: commented out */
         int irqstate = (oldval & 4) && !(value & 2);
+        env->uc->timer_irqfunc(env->uc->timer_opaque, timeridx, irqstate);
 
-        qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
+        //trace_arm_gt_imask_toggle(timeridx, irqstate);
+        //qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
     }
-#endif
 }
 
 static void gt_phys_timer_reset(CPUARMState *env, const ARMCPRegInfo *ri)
@@ -4388,16 +4422,25 @@ static void sctlr_write(CPUARMState *env, const ARMCPRegInfo *ri,
 {
     ARMCPU *cpu = env_archcpu(env);
 
+    if (arm_feature(env, ARM_FEATURE_PMSA) && !cpu->has_mpu) {
+        /* M bit is RAZ/WI for PMSA with no MPU implemented */
+        value &= ~SCTLR_M;
+    }
+
+    if (ri->state == ARM_CP_STATE_AA64 && !cpu_isar_feature(aa64_mte, cpu)) {
+        if (ri->opc1 == 6) { /* SCTLR_EL3 */
+            value &= ~(SCTLR_ITFSB | SCTLR_TCF | SCTLR_ATA);
+        } else {
+            value &= ~(SCTLR_ITFSB | SCTLR_TCF0 | SCTLR_TCF |
+                       SCTLR_ATA0 | SCTLR_ATA);
+        }
+    }
+
     if (raw_read(env, ri) == value) {
         /* Skip the TLB flush if nothing actually changed; Linux likes
          * to do a lot of pointless SCTLR writes.
          */
         return;
-    }
-
-    if (arm_feature(env, ARM_FEATURE_PMSA) && !cpu->has_mpu) {
-        /* M bit is RAZ/WI for PMSA with no MPU implemented */
-        value &= ~SCTLR_M;
     }
 
     raw_write(env, ri, value);

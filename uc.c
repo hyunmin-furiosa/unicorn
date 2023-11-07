@@ -74,6 +74,11 @@ static void restore_jit_state(uc_engine *uc)
 }
 #endif
 
+static void helper_tlb_cluster_flush(CPUState* cpu);
+static void helper_tlb_cluster_flush_page(CPUState* cpu, uint64_t addr);
+static void helper_tlb_cluster_flush_mmuidx(CPUState* cpu, uint16_t idxmap);
+static void helper_tlb_cluster_flush_page_mmuidx(CPUState* cpu, uint64_t addr, uint16_t idxmap);
+
 static void *hook_insert(struct list *l, struct hook *h)
 {
     void *item = list_insert(l, (void *)h);
@@ -342,6 +347,27 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
         uc->uc_watchpoint_opaque = NULL;
 
         // uc->is_debug = false;
+        
+        uc->smp = 0;
+        uc->core_id = 0;
+
+        // for timer
+        uc->timer_initialized = false;
+        uc->timer_timefunc = NULL;
+        uc->timer_irqfunc  = NULL;
+        uc->timer_schedule = NULL;
+
+        uc->uc_tlb_cluster_flush = NULL;
+        uc->uc_tlb_cluster_flush_page = NULL;
+        uc->uc_tlb_cluster_flush_mmuidx = NULL;
+        uc->uc_tlb_cluster_flush_page_mmuidx = NULL;
+        uc->uc_tlb_cluster_opaque = NULL;
+
+        // if smp, call tlb cluster
+        uc->tlb_cluster_flush = helper_tlb_cluster_flush;
+        uc->tlb_cluster_flush_page = helper_tlb_cluster_flush_page;
+        uc->tlb_cluster_flush_mmuidx = helper_tlb_cluster_flush_mmuidx;
+        uc->tlb_cluster_flush_page_mmuidx = helper_tlb_cluster_flush_page_mmuidx;
 
         switch (arch) {
         default:
@@ -2482,6 +2508,29 @@ uc_err uc_va2pa(uc_engine *uc, uint64_t va, uint64_t *pa) {
 }
 
 UNICORN_EXPORT
+uc_err uc_setup_timer(uc_engine *uc, void *opaque, uc_timer_timefunc_t timefn,
+                      uc_timer_irqfunc_t irqfn, uc_timer_schedule_t schedfn) {
+    if (timefn == NULL || irqfn == NULL || schedfn == NULL)
+        return UC_ERR_ARG;
+
+    uc->timer_timefunc = timefn;
+    uc->timer_irqfunc = irqfn;
+    uc->timer_schedule = schedfn;
+    uc->timer_opaque = opaque;
+    uc->timer_initialized = true;
+
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_update_timer(uc_engine *uc, int timeridx) {
+    if (!uc->timer_recalc)
+        return UC_ERR_ARG;
+    uc->timer_recalc(uc->cpu, timeridx);
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
 uc_err uc_reset(uc_engine *uc) {
     CPUClass *cc = CPU_GET_CLASS(uc->cpu);
     cc->reset(uc->cpu);
@@ -2845,6 +2894,15 @@ uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...)
         restore_jit_state(uc);
         break;
 
+    case UC_CTL_SMP: {
+        if (rw == UC_CTL_IO_WRITE) {
+            int enable = va_arg(args, int);
+            int id = va_arg(args, int);
+            uc->smp = enable;
+            uc->core_id = id;
+        } 
+    } break;
+
     default:
         err = UC_ERR_ARG;
         break;
@@ -2863,6 +2921,89 @@ uc_err uc_setup_portio_cb(uc_engine *uc, void *opaque, uc_cb_mmio_t fn)
     uc->uc_portio_func = fn;
     uc->uc_portio_opaque = opaque;
 
+    return UC_ERR_OK;
+}
+static void helper_tlb_cluster_flush(CPUState* cpu) {
+    uc_engine *uc = cpu->uc;
+    printf("DBG TLB %s", __func__);
+    if (!uc->uc_tlb_cluster_flush) {
+        uc_tlb_flush(uc);
+    } else {
+        uc->uc_tlb_cluster_flush(uc->uc_tlb_cluster_opaque);
+    }
+}
+
+static void helper_tlb_cluster_flush_page(CPUState* cpu, uint64_t addr) {
+    uc_engine *uc = cpu->uc;
+    printf("DBG TLB %s", __func__);
+    if (!uc->uc_tlb_cluster_flush_page) {
+        uc_tlb_flush_page(uc, addr);
+    } else {
+        uc->uc_tlb_cluster_flush_page(uc->uc_tlb_cluster_opaque, addr);
+    }
+}
+
+static void helper_tlb_cluster_flush_mmuidx(CPUState* cpu, uint16_t idxmap) {
+    uc_engine *uc = cpu->uc;
+    if (!uc->uc_tlb_cluster_flush_mmuidx) {
+    printf("DBG TLB %s", __func__);
+        uc_tlb_flush_mmuidx(uc, idxmap);
+    } else {
+        uc->uc_tlb_cluster_flush_mmuidx(uc->uc_tlb_cluster_opaque, idxmap);
+    }
+}
+
+static void helper_tlb_cluster_flush_page_mmuidx(CPUState* cpu, uint64_t addr, uint16_t idxmap) {
+    uc_engine *uc = cpu->uc;
+    printf("DBG TLB %s", __func__);
+    if (!uc->uc_tlb_cluster_flush_page_mmuidx) {
+        uc_tlb_flush_page_mmuidx(uc, addr, idxmap);
+    } else {
+        uc->uc_tlb_cluster_flush_page_mmuidx(uc->uc_tlb_cluster_opaque, addr, idxmap);
+    }
+}
+UNICORN_EXPORT
+uc_err uc_tlb_flush(uc_engine *uc) {
+    if (!uc || !uc->tlb_flush)
+        return UC_ERR_ARG;
+    uc->tlb_flush(uc->cpu);
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush_page(uc_engine *uc, uint64_t addr) {
+    if (!uc || !uc->tlb_flush_page)
+        return UC_ERR_ARG;
+    uc->tlb_flush_page(uc->cpu, addr);
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush_mmuidx(uc_engine *uc, uint16_t idxmap) {
+    if (!uc || !uc->tlb_flush_mmuidx)
+        return UC_ERR_ARG;
+    uc->tlb_flush_mmuidx(uc->cpu, idxmap);
+    return UC_ERR_OK;
+}
+
+UNICORN_EXPORT
+uc_err uc_tlb_flush_page_mmuidx(uc_engine *uc, uint64_t addr, uint16_t idxmap) {
+    if (!uc || !uc->tlb_flush_page_mmuidx)
+        return UC_ERR_ARG;
+    uc->tlb_flush_page_mmuidx(uc->cpu, addr, idxmap);
+    return UC_ERR_OK;
+}
+
+uc_err uc_register_tlb_cluster(uc_engine *uc, void *opaque,
+    uc_tlb_cluster_flush_t             tlb_cluster_flush_fn,
+    uc_tlb_cluster_flush_page_t        tlb_cluster_flush_page_fn,
+    uc_tlb_cluster_flush_mmuidx_t      tlb_cluster_flush_mmuidx_fn,
+    uc_tlb_cluster_flush_page_mmuidx_t tlb_cluster_flush_page_mmuidx_fn) {
+    uc->uc_tlb_cluster_flush = tlb_cluster_flush_fn;
+    uc->uc_tlb_cluster_flush_page = tlb_cluster_flush_page_fn;
+    uc->uc_tlb_cluster_flush_mmuidx = tlb_cluster_flush_mmuidx_fn;
+    uc->uc_tlb_cluster_flush_page_mmuidx = tlb_cluster_flush_page_mmuidx_fn;
+    uc->uc_tlb_cluster_opaque = opaque;
     return UC_ERR_OK;
 }
 
