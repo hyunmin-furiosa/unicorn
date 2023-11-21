@@ -2525,6 +2525,7 @@ static void gt_ctl_write(CPUARMState *env, const ARMCPRegInfo *ri,
     // from ocx-qemu-arm
     ARMCPU *cpu = env_archcpu(env);
     uint32_t oldval = env->cp15.c14_timer[timeridx].ctl;
+    printf("%s timer%d old_value/new_value : 0x%x/0x%lx", __func__, timeridx, oldval, value);
 
     static int warned = 0;
     if (!warned && !env->uc->timer_initialized) {
