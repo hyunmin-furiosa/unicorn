@@ -2395,6 +2395,9 @@ static void gt_recalc_timer(ARMCPU *cpu, int timeridx)
 
         // Unicorn: commented out
         irqstate = (istatus && !(gt->ctl & 2));
+        if(irqstate) {
+            printf("irqstate/count/offset/cval : %d/0x%lx/0x%lx/0x%lx\n", irqstate, count, offset, gt->cval);
+        }
         env->uc->timer_irqfunc(opaque, timeridx, irqstate);
         //qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
 
@@ -2481,6 +2484,7 @@ static void gt_cval_write(CPUARMState *env, const ARMCPRegInfo *ri,
 {
     // from ocx-qemu-arm
     env->cp15.c14_timer[timeridx].cval = value;
+    printf("%s, timer[%d] cval = 0x%lx\n", __func__, timeridx, value); // Byeongwook
     gt_recalc_timer(env_archcpu(env), timeridx);
 }
 
@@ -2488,6 +2492,8 @@ static uint64_t gt_tval_read(CPUARMState *env, const ARMCPRegInfo *ri,
                              int timeridx)
 {
     uint64_t offset = 0;
+    uint64_t counter_value = 0;
+    uint32_t tval = 0;
 
     switch (timeridx) {
     case GTIMER_VIRT:
@@ -2496,8 +2502,12 @@ static uint64_t gt_tval_read(CPUARMState *env, const ARMCPRegInfo *ri,
         break;
     }
 
-    return (uint32_t)(env->cp15.c14_timer[timeridx].cval -
-                      (gt_get_countervalue(env) - offset));
+    //  return (uint32_t)(env->cp15.c14_timer[timeridx].cval -
+    //                    (gt_get_countervalue(env) - offset));
+    counter_value = gt_get_countervalue(env);
+    tval = (env->cp15.c14_timer[timeridx].cval - (counter_value - offset));
+    printf("%s, timer[%d] tval(0x%x) = cval(0x%lx) - (counter_value(0x%lx)-offset(0x%lx))\n", __func__, timeridx, tval, env->cp15.c14_timer[timeridx].cval, counter_value, offset);
+    return tval;
 }
 
 static void gt_tval_write(CPUARMState *env, const ARMCPRegInfo *ri,
@@ -2505,6 +2515,7 @@ static void gt_tval_write(CPUARMState *env, const ARMCPRegInfo *ri,
                           uint64_t value)
 {
     uint64_t offset = 0;
+    uint64_t counter_value = 0;
 
     switch (timeridx) {
     case GTIMER_VIRT:
@@ -2513,8 +2524,13 @@ static void gt_tval_write(CPUARMState *env, const ARMCPRegInfo *ri,
         break;
     }
 
-    env->cp15.c14_timer[timeridx].cval = gt_get_countervalue(env) - offset +
+    // env->cp15.c14_timer[timeridx].cval = gt_get_countervalue(env) - offset +
+    //                                      sextract64(value, 0, 32);
+    // gt_recalc_timer(env_archcpu(env), timeridx);
+    counter_value = gt_get_countervalue(env);
+    env->cp15.c14_timer[timeridx].cval = counter_value - offset +
                                          sextract64(value, 0, 32);
+    printf("%s, timer[%d] cval(0x{%lx}) = counter_value(0x%lx) - offset(0x%lx) + tval(0x%lx)\n", __func__, timeridx, env->cp15.c14_timer[timeridx].cval, counter_value, offset, sextract64(value,0, 32)); // Byeongwook
     gt_recalc_timer(env_archcpu(env), timeridx);
 }
 
@@ -2525,7 +2541,7 @@ static void gt_ctl_write(CPUARMState *env, const ARMCPRegInfo *ri,
     // from ocx-qemu-arm
     ARMCPU *cpu = env_archcpu(env);
     uint32_t oldval = env->cp15.c14_timer[timeridx].ctl;
-    printf("%s timer%d old_value/new_value : 0x%x/0x%lx", __func__, timeridx, oldval, value);
+    // printf("%s, timer%d old_value/new_value : 0x%x/0x%lx\n", __func__, timeridx, oldval, value);
 
     static int warned = 0;
     if (!warned && !env->uc->timer_initialized) {
@@ -2539,7 +2555,11 @@ static void gt_ctl_write(CPUARMState *env, const ARMCPRegInfo *ri,
     env->cp15.c14_timer[timeridx].ctl = deposit64(oldval, 0, 2, value);
     if ((oldval ^ value) & 1) {
         /* Enable toggled */
-        gt_recalc_timer(cpu, timeridx);
+        // gt_recalc_timer(cpu, timeridx);
+        // Workaround(Byeongwook)
+        if(env->cp15.c14_timer[timeridx].cval != 0x0) {
+            gt_recalc_timer(cpu, timeridx);
+        }
     } else if ((oldval ^ value) & 2) {
         /* IMASK toggled: don't need to recalculate,
          * just set the interrupt line based on ISTATUS
@@ -5743,6 +5763,93 @@ static const ARMCPRegInfo debug_lpae_cp_reginfo[] = {
     REGINFO_SENTINEL
 };
 
+/*
+ * Check for traps to RAS registers, which are controlled
+ * by HCR_EL2.TERR and SCR_EL3.TERR.
+ */
+static CPAccessResult access_terr(CPUARMState *env, const ARMCPRegInfo *ri,
+                                  bool isread)
+{
+    int el = arm_current_el(env);
+
+    if (el < 2 && (arm_hcr_el2_eff(env) & HCR_TERR)) {
+        return CP_ACCESS_TRAP_EL2;
+    }
+    if (el < 3 && (env->cp15.scr_el3 & SCR_TERR)) {
+        return CP_ACCESS_TRAP_EL3;
+    }
+    return CP_ACCESS_OK;
+}
+
+static uint64_t disr_read(CPUARMState *env, const ARMCPRegInfo *ri)
+{
+    int el = arm_current_el(env);
+
+    if (el < 2 && (arm_hcr_el2_eff(env) & HCR_AMO)) {
+        return env->cp15.vdisr_el2;
+    }
+    if (el < 3 && (env->cp15.scr_el3 & SCR_EA)) {
+        return 0; /* RAZ/WI */
+    }
+    return env->cp15.disr_el1;
+}
+
+static void disr_write(CPUARMState *env, const ARMCPRegInfo *ri, uint64_t val)
+{
+    int el = arm_current_el(env);
+
+    if (el < 2 && (arm_hcr_el2_eff(env) & HCR_AMO)) {
+        env->cp15.vdisr_el2 = val;
+        return;
+    }
+    if (el < 3 && (env->cp15.scr_el3 & SCR_EA)) {
+        return; /* RAZ/WI */
+    }
+    env->cp15.disr_el1 = val;
+}
+
+/*
+ * Minimal RAS implementation with no Error Records.
+ * Which means that all of the Error Record registers:
+ *   ERXADDR_EL1
+ *   ERXCTLR_EL1
+ *   ERXFR_EL1
+ *   ERXMISC0_EL1
+ *   ERXMISC1_EL1
+ *   ERXMISC2_EL1
+ *   ERXMISC3_EL1
+ *   ERXPFGCDN_EL1  (RASv1p1)
+ *   ERXPFGCTL_EL1  (RASv1p1)
+ *   ERXPFGF_EL1    (RASv1p1)
+ *   ERXSTATUS_EL1
+ * and
+ *   ERRSELR_EL1
+ * may generate UNDEFINED, which is the effect we get by not
+ * listing them at all.
+ *
+ * These registers have fine-grained trap bits, but UNDEF-to-EL1
+ * is higher priority than FGT-to-EL2 so we do not need to list them
+ * in order to check for an FGT.
+ */
+static const ARMCPRegInfo minimal_ras_reginfo[] = {
+    { .name = "DISR_EL1", .state = ARM_CP_STATE_BOTH,
+      .opc0 = 3, .opc1 = 0, .crn = 12, .crm = 1, .opc2 = 1,
+      .access = PL1_RW, .fieldoffset = offsetof(CPUARMState, cp15.disr_el1),
+      .readfn = disr_read, .writefn = disr_write, .raw_writefn = raw_write },
+    { .name = "ERRIDR_EL1", .state = ARM_CP_STATE_BOTH,
+      .opc0 = 3, .opc1 = 0, .crn = 5, .crm = 3, .opc2 = 0,
+      .access = PL1_R, .accessfn = access_terr,
+      // TODO(Byeongwook) .fgt = FGT_ERRIDR_EL1,
+      .type = ARM_CP_CONST, .resetvalue = 0 },
+    { .name = "VDISR_EL2", .state = ARM_CP_STATE_BOTH,
+      .opc0 = 3, .opc1 = 4, .crn = 12, .crm = 1, .opc2 = 1,
+      .access = PL2_RW, .fieldoffset = offsetof(CPUARMState, cp15.vdisr_el2) },
+    { .name = "VSESR_EL2", .state = ARM_CP_STATE_BOTH,
+      .opc0 = 3, .opc1 = 4, .crn = 5, .crm = 2, .opc2 = 3,
+      .access = PL2_RW, .fieldoffset = offsetof(CPUARMState, cp15.vsesr_el2) },
+    REGINFO_SENTINEL
+};
+
 /* Return the exception level to which exceptions should be taken
  * via SVEAccessTrap.  If an exception should be routed through
  * AArch64.AdvSIMDFPAccessTrap, return 0; fp_exception_el should
@@ -7560,6 +7667,9 @@ void register_cp_regs_for_features(ARMCPU *cpu)
     if (cpu_isar_feature(aa64_uao, cpu)) {
         define_one_arm_cp_reg(cpu, &uao_reginfo);
     }
+    if (cpu_isar_feature(any_ras, cpu)) {
+        define_arm_cp_regs(cpu, minimal_ras_reginfo);
+    }
 
     if (arm_feature(env, ARM_FEATURE_EL2) && cpu_isar_feature(aa64_vh, cpu)) {
         define_arm_cp_regs(cpu, vhe_reginfo);
@@ -7898,6 +8008,7 @@ void define_arm_cp_regs_with_opaque(ARMCPU *cpu,
     /* Define a whole list of registers */
     const ARMCPRegInfo *r;
     for (r = regs; r->type != ARM_CP_SENTINEL; r++) {
+        printf("debug : %s\n", r->name);
         define_one_arm_cp_reg_with_opaque(cpu, r, opaque);
     }
 }
@@ -9712,7 +9823,8 @@ static bool get_phys_addr_v6(CPUARMState *env, uint32_t address,
         goto do_fault;
     }
     type = (desc & 3);
-    if (type == 0 || (type == 3 && !arm_feature(env, ARM_FEATURE_PXN))) {
+    // TODO(Byeongwook) if (type == 0 || (type == 3 && !arm_feature(env, ARM_FEATURE_PXN))) {
+    if (type == 0 || type == 3) {
         /* Section translation fault, or attempt to use the encoding
          * which is Reserved on implementations without PXN.
          */
@@ -9754,9 +9866,9 @@ static bool get_phys_addr_v6(CPUARMState *env, uint32_t address,
         pxn = desc & 1;
         ns = extract32(desc, 19, 1);
     } else {
-        if (arm_feature(env, ARM_FEATURE_PXN)) {
-            pxn = (desc >> 2) & 1;
-        }
+        // TODO(Byeongwook) if (arm_feature(env, ARM_FEATURE_PXN)) {
+        // TODO(Byeongwook)     pxn = (desc >> 2) & 1;
+        // TODO(Byeongwook) }
         ns = extract32(desc, 3, 1);
         /* Lookup l2 entry.  */
         table = (desc & 0xfffffc00) | ((address >> 10) & 0x3fc);
