@@ -1708,7 +1708,6 @@ static void scr_write(CPUARMState *env, const ARMCPRegInfo *ri, uint64_t value)
         }
     }
 
-    printf("DBG0912 value/valid_mask : 0x%lx/0x%lx\n", value, valid_mask);
     /* Clear all-context RES0 bits.  */
     value &= valid_mask;
     changed = env->cp15.scr_el3 ^ value;
@@ -8008,7 +8007,6 @@ void define_arm_cp_regs_with_opaque(ARMCPU *cpu,
     /* Define a whole list of registers */
     const ARMCPRegInfo *r;
     for (r = regs; r->type != ARM_CP_SENTINEL; r++) {
-        printf("debug : %s\n", r->name);
         define_one_arm_cp_reg_with_opaque(cpu, r, opaque);
     }
 }
@@ -11421,7 +11419,7 @@ hwaddr arm_cpu_get_phys_page_attrs_debug(CPUState *cs, vaddr addr,
     ARMMMUIdx mmu_idx = arm_mmu_idx(env);
 
     *attrs = (MemTxAttrs) { 0 };
-    // Byeongwook
+    // TODO(Byeongwook) support debug access
     // bool prev = cs->uc->is_debug;
     // cs->uc->is_debug = true;
     ret = get_phys_addr(env, addr, 0, mmu_idx, &phys_addr,
