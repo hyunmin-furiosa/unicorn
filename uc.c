@@ -2925,7 +2925,6 @@ uc_err uc_setup_portio_cb(uc_engine *uc, void *opaque, uc_cb_mmio_t fn)
 }
 static void helper_tlb_cluster_flush(CPUState* cpu) {
     uc_engine *uc = cpu->uc;
-    printf("DBG TLB %s", __func__);
     if (!uc->uc_tlb_cluster_flush) {
         uc_tlb_flush(uc);
     } else {
@@ -2935,7 +2934,6 @@ static void helper_tlb_cluster_flush(CPUState* cpu) {
 
 static void helper_tlb_cluster_flush_page(CPUState* cpu, uint64_t addr) {
     uc_engine *uc = cpu->uc;
-    printf("DBG TLB %s", __func__);
     if (!uc->uc_tlb_cluster_flush_page) {
         uc_tlb_flush_page(uc, addr);
     } else {
@@ -2946,7 +2944,6 @@ static void helper_tlb_cluster_flush_page(CPUState* cpu, uint64_t addr) {
 static void helper_tlb_cluster_flush_mmuidx(CPUState* cpu, uint16_t idxmap) {
     uc_engine *uc = cpu->uc;
     if (!uc->uc_tlb_cluster_flush_mmuidx) {
-    printf("DBG TLB %s", __func__);
         uc_tlb_flush_mmuidx(uc, idxmap);
     } else {
         uc->uc_tlb_cluster_flush_mmuidx(uc->uc_tlb_cluster_opaque, idxmap);
@@ -2955,7 +2952,6 @@ static void helper_tlb_cluster_flush_mmuidx(CPUState* cpu, uint16_t idxmap) {
 
 static void helper_tlb_cluster_flush_page_mmuidx(CPUState* cpu, uint64_t addr, uint16_t idxmap) {
     uc_engine *uc = cpu->uc;
-    printf("DBG TLB %s", __func__);
     if (!uc->uc_tlb_cluster_flush_page_mmuidx) {
         uc_tlb_flush_page_mmuidx(uc, addr, idxmap);
     } else {
