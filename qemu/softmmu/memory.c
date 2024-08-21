@@ -254,6 +254,7 @@ MemoryRegion *memory_map_io(struct uc_struct *uc, ram_addr_t begin, size_t size,
     ops->write = NULL; // mmio_write_wrapper
     ops->write_with_attrs = mmio_write_wrapper_with_attr;
     ops->endianness = DEVICE_NATIVE_ENDIAN;
+    ops->impl.max_access_size = 8; // 64bits
 
     memory_region_init_io(uc, mmio, ops, opaques, size);
 
