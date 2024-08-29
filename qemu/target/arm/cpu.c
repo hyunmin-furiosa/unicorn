@@ -357,18 +357,20 @@ static void arm_cpu_reset(CPUState *dev)
 
     hw_breakpoint_update_all(cpu);
     hw_watchpoint_update_all(cpu);
+
+    // set config registers (taken from hw/arm/boot.c)
+    if (arm_feature(env, ARM_FEATURE_EL3) && env->aarch64)
+        env->cp15.scr_el3 |= SCR_RW;  // 64bit registers on el3
+
+    if (arm_feature(env, ARM_FEATURE_EL2) && env->aarch64)
+        env->cp15.hcr_el2 |= HCR_RW;  // 64bit registers on el2
+
+    if (arm_feature(env, ARM_FEATURE_EL3) && arm_feature(env, ARM_FEATURE_EL2))
+        env->cp15.scr_el3 |= SCR_HCE; // hypervisor call available
     arm_rebuild_hflags(env);
 
-    // from ocx-qemu-arm unicorn 
-    // set config registers (taken from hw/arm/boot.c)
-    // if (arm_feature(env, ARM_FEATURE_EL3) && env->aarch64)
-    //     env->cp15.scr_el3 |= SCR_RW;  // 64bit registers on el3
-
-    // if (arm_feature(env, ARM_FEATURE_EL2) && env->aarch64)
-    //     env->cp15.hcr_el2 |= HCR_RW;  // 64bit registers on el2
-
-    // if (arm_feature(env, ARM_FEATURE_EL3) && arm_feature(env, ARM_FEATURE_EL2))
-    //     env->cp15.scr_el3 |= SCR_HCE; // hypervisor call available
+    // Reset unicorn engine status register
+    env->uc->event_register = false;
 }
 
 static inline bool arm_excp_unmasked(CPUState *cs, unsigned int excp_idx,

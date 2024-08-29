@@ -366,6 +366,8 @@ struct uc_struct {
     // bool is_debug;
     int smp;
     int core_id;
+    // TODO interface for updating event_register
+    bool event_register;
 
     /*  only 1 cpu in unicorn,
         do not need current_cpu to handle current running cpu. */

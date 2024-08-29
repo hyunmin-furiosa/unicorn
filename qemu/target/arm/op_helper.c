@@ -322,7 +322,13 @@ void HELPER(wfe)(CPUARMState *env)
     void* opaque = env->uc->uc_hint_opaque;
 
     if (fn != NULL) {
-        fn(opaque, UC_HINT_WFE);
+        if (env->uc->event_register) {
+            // skip wfe
+            printf("lidwoogi : skip wfe because event_register is true\n");
+            env->uc->event_register = false;
+        } else {
+            fn(opaque, UC_HINT_WFE);
+        }
         return;
     }
 
@@ -348,6 +354,7 @@ void HELPER(sev)(CPUARMState *env)
     uc_hintfunc_t fn = env->uc->uc_hint_func;
     void* opaque = env->uc->uc_hint_opaque;
 
+    env->uc->event_register = true;
     if (fn != NULL)
         fn(opaque, UC_HINT_SEV);
 }
@@ -357,6 +364,7 @@ void HELPER(sevl)(CPUARMState *env)
     uc_hintfunc_t fn = env->uc->uc_hint_func;
     void* opaque = env->uc->uc_hint_opaque;
 
+    env->uc->event_register = true;
     if (fn != NULL)
         fn(opaque, UC_HINT_SEVL);
 }
