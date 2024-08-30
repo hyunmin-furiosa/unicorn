@@ -311,6 +311,7 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
         
         uc->smp = 0;
         uc->core_id = 0;
+        uc->event_register = false;
 
         // for timer
         uc->timer_initialized = false;
