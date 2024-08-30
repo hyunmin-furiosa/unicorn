@@ -324,7 +324,6 @@ void HELPER(wfe)(CPUARMState *env)
     if (fn != NULL) {
         if (env->uc->event_register) {
             // skip wfe
-            printf("lidwoogi : skip wfe because event_register is true\n");
             env->uc->event_register = false;
         } else {
             fn(opaque, UC_HINT_WFE);
