@@ -1354,9 +1354,16 @@ uc_err uc_mmio_map(uc_engine *uc, uint64_t address, size_t size,
 
     // The callbacks do not need to be checked for NULL here, as their presence
     // (or lack thereof) will determine the permissions used.
+<<<<<<< HEAD
     res = mem_map(uc, uc->memory_map_io(uc, address, size, callback, user_data));
     restore_jit_state(uc);
     return res;
+||||||| da47173d
+    return mem_map(uc, uc->memory_map_io(uc, address, size, read_cb, write_cb,
+                                         user_data_read, user_data_write));
+=======
+    return mem_map(uc, uc->memory_map_io(uc, address, size, callback, user_data));
+>>>>>>> 443449e3489593adee84236fcacfa4284a6e0a8f
 }
 
 // Create a backup copy of the indicated MemoryRegion.
