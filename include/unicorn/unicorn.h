@@ -502,6 +502,8 @@ typedef enum uc_tx_result {
 typedef uc_tx_result_t (*uc_cb_mmio_t)(uc_engine* uc, void* opaque,
                                        uc_mmio_tx_t* tx);
 
+typedef void     (*uc_cache_func_t)(void* opaque, int type, uint64_t value);
+
 typedef uint64_t (*uc_timer_timefunc_t)(void* opaque, uint64_t clock);
 typedef void     (*uc_timer_irqfunc_t )(void* opaque, int idx, int set);
 typedef void     (*uc_timer_schedule_t)(void* opaque, int idx, uint64_t clock,
@@ -1478,6 +1480,9 @@ typedef void (*uc_hintfunc_t)(void *, uc_hint_t);
 
 UNICORN_EXPORT
 uc_err uc_setup_hint(uc_engine *uc, void *opaque, uc_hintfunc_t hintfn);
+
+UNICORN_EXPORT
+uc_err uc_setup_cache(uc_engine *uc, void *opaque, uc_cache_func_t cachefn);
 
 UNICORN_EXPORT
 uc_err uc_setup_timer(uc_engine *uc, void *opaque, uc_timer_timefunc_t timefn,

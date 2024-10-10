@@ -4086,9 +4086,9 @@ static const ARMCPRegInfo uao_reginfo = {
     .readfn = aa64_uao_read, .writefn = aa64_uao_write
 };
 
-static CPAccessResult aa64_cacheop_poc_access(CPUARMState *env,
-                                              const ARMCPRegInfo *ri,
-                                              bool isread)
+ static CPAccessResult aa64_cacheop_poc_access(CPUARMState *env,
+                                               const ARMCPRegInfo *ri,
+                                               bool isread)
 {
     /* Cache invalidate/clean to Point of Coherency or Persistence...  */
     switch (arm_current_el(env)) {
@@ -4106,6 +4106,22 @@ static CPAccessResult aa64_cacheop_poc_access(CPUARMState *env,
         break;
     }
     return CP_ACCESS_OK;
+}
+
+static void aa64_cacheop_poc_write(CPUARMState *env,
+                                   const ARMCPRegInfo *ri,
+                                   uint64_t value) 
+{
+    struct uc_struct *uc = env->uc;
+    if(uc->uc_cache_func) {
+        if (ri->opc1 == 0 && ri->crm == 6 && ri->opc2 == 1) {
+            // data cache invalidate
+            uc->uc_cache_func(uc->uc_cache_opaque, 0, value);
+        } else if (ri->opc1 == 3&& ri->crm == 10 && ri->opc2 == 1) {
+            // data cache flush
+            uc->uc_cache_func(uc->uc_cache_opaque, 1, value);
+        }
+    }
 }
 
 static CPAccessResult aa64_cacheop_pou_access(CPUARMState *env,
@@ -4546,15 +4562,17 @@ static const ARMCPRegInfo v8_cp_reginfo[] = {
       .accessfn = aa64_cacheop_pou_access },
     { .name = "DC_IVAC", .state = ARM_CP_STATE_AA64,
       .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 6, .opc2 = 1,
-      .access = PL1_W, .accessfn = aa64_cacheop_poc_access,
-      .type = ARM_CP_NOP },
+      .access = PL1_W, .type = ARM_CP_NO_RAW,
+      .accessfn = aa64_cacheop_poc_access,
+      .writefn = aa64_cacheop_poc_write },
     { .name = "DC_ISW", .state = ARM_CP_STATE_AA64,
       .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 6, .opc2 = 2,
       .access = PL1_W, .accessfn = access_tsw, .type = ARM_CP_NOP },
     { .name = "DC_CVAC", .state = ARM_CP_STATE_AA64,
       .opc0 = 1, .opc1 = 3, .crn = 7, .crm = 10, .opc2 = 1,
-      .access = PL0_W, .type = ARM_CP_NOP,
-      .accessfn = aa64_cacheop_poc_access },
+      .access = PL0_W, .type = ARM_CP_NO_RAW,
+      .accessfn = aa64_cacheop_poc_access,
+      .writefn = aa64_cacheop_poc_write },
     { .name = "DC_CSW", .state = ARM_CP_STATE_AA64,
       .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 10, .opc2 = 2,
       .access = PL1_W, .accessfn = access_tsw, .type = ARM_CP_NOP },

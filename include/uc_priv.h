@@ -355,6 +355,9 @@ struct uc_struct {
     uc_hintfunc_t uc_hint_func;
     void*         uc_hint_opaque;
 
+    uc_cache_func_t uc_cache_func;
+    void*           uc_cache_opaque;
+
     // from ocx-qemu-arm
     uc_timer_timefunc_t timer_timefunc;
     uc_timer_irqfunc_t  timer_irqfunc;

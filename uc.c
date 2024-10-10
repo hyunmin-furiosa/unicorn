@@ -2530,6 +2530,16 @@ uc_err uc_update_timer(uc_engine *uc, int timeridx) {
     uc->timer_recalc(uc->cpu, timeridx);
     return UC_ERR_OK;
 }
+UNICORN_EXPORT
+uc_err uc_setup_cache(uc_engine *uc, void *opaque, uc_cache_func_t cachefn) {
+    if(cachefn == NULL)
+        return UC_ERR_ARG;
+
+    uc->uc_cache_func = cachefn;
+    uc->uc_cache_opaque = opaque;
+
+    return UC_ERR_OK;
+}
 
 UNICORN_EXPORT
 uc_err uc_reset(uc_engine *uc) {
